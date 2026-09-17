@@ -52,6 +52,8 @@ We are handed a evidence file to begin our investigation which contains various 
 
 ### 🚩 Flag 2: The Guessing Source
 
+MITRE Techniques:
+
 Scenario Context:
 
 Here is where most people go wrong. That box is being hit constantly from the open internet, dozens of sources, thousands of failures. Almost all of it is background noise that never gets anywhere.
@@ -91,59 +93,36 @@ DeviceLogonEvents
 ---
 
 
-### 🚩 Flag 3: Executed Binary Name
+### 🚩 Flag 3: How They Came In
+
 MITRE Techniques:
-🔸 T1059.003 – Command and Scripting Interpreter: Windows Command Shell
-🔸 T1204.002 – User Execution: Malicious File
+
 
 Scenario Context:
-After gaining RDP access, the attacker executed a suspicious binary on the host. Identifying this file is critical to understanding the payload or initial action and objectives of the attacker.
+The successful logon is not somebody sitting at the desk. Give me the logon type. Format: logon type name, the descriptive name Windows gives it, not the numeric ID
 
 
-Objective:
-Identify the name of the binary executed by the attacker.
 
 ## Investigation
 
-To identify the attacker's payload, I reviewed process execution events associated with the compromised account. I initially examined all processes before narrowing the search to executables launched from uncommon directories such as **Public**, **Temp**, and **Downloads**.
+To identify the attacker's logon type I looked through the same device logs and added to KQL to project logon types. when we look in the logs we see an RDP logon. 
 
 ```kusto
-DeviceProcessEvents
-| where DeviceName contains "flare"
-| where AccountName == "slflare"
-| where Timestamp between (datetime(2025-09-16) .. datetime(2025-09-30))
-| project Timestamp, AccountName, FileName, FolderPath, ProcessCommandLine
+DeviceLogonEvents 
+| where Timestamp between (datetime(2026-05-25) .. datetime(2026-05-31)) 
+| where DeviceName startswith "nh-wks-it-01" 
+| where AccountName has "reed" 
+| project Timestamp, DeviceName, AccountName, ActionType, LogonType, RemoteIP, RemoteDeviceName
 | sort by Timestamp asc
 ```
 
-### Refined Query
-
-```kusto
-DeviceProcessEvents
-| where DeviceName contains "flare"
-| where AccountName == "slflare"
-| where Timestamp >= datetime(2025-09-16T18:43:46Z)
-| where FolderPath has_any ("public", "temp", "downloads")
-| project Timestamp, AccountName, FileName, FolderPath, ProcessCommandLine
-| sort by Timestamp asc
-```
-
-## Finding
-
-The investigation identified **msupdate.exe** executing from **C:\Users\Public**.
-
-Several indicators confirmed this was a malicious executable:
-
-- Executed from an unusual directory rather than a legitimate Windows system path.
-- Used the name **msupdate.exe** to masquerade as a Microsoft Update component.
-- Launched PowerShell while bypassing execution policy restrictions.
+<img width="1801" height="606" alt="image" src="https://github.com/user-attachments/assets/263d6f2f-52e7-4d75-9868-332df19c9c68" />
 
 
 
-<img width="975" height="187" alt="image" src="https://github.com/user-attachments/assets/7945bc6e-bad4-4a53-a203-d35aed2e25a1" />
+## Answer : Remote Interactive
 
 
-<img width="620" height="140" alt="image" src="https://github.com/user-attachments/assets/1f89bd9e-49c3-46d6-9bfd-6672695bce27" />
 
 
 ---
