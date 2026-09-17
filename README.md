@@ -1,7 +1,8 @@
-<img width="1536" height="1024" alt="PWD Spray" src="https://github.com/user-attachments/assets/17e95697-c640-4bfc-a3e1-82e9f670bd52" />
+<img width="1024" height="682" alt="image" src="https://github.com/user-attachments/assets/b83118a2-7084-444d-b9a5-d4e87dea9d1a" />
 
 
-# Pwd-Spray-to-Full-Compromise
+
+# Another Day, Part Two
 
 ## Platforms and Languages Leveraged
 - Windows 11 Virtual Machines (Microsoft Azure)
@@ -10,49 +11,39 @@
 
 ##  Scenario
 
-Incident Response Scenario - where DeviceName contains "flare" Incident Date 14-September-2025
-Suspicious activity has been detected on one of our cloud virtual machines. As a Security Analyst, you’ve been assigned to investigate this incident and determine the scope and impact of the breach.
+You know this client. Nimbus Health, the outpatient clinic we picked apart back in March. They are back on the board, and this time the shape of the problem is different.
+
+A nearby industrial park opened. Patient volume went up, and so did billing, HR onboarding and endpoint support. Nimbus hired across every department at once and put the new starters on the same shared workstations they already had. Growth first, access review later.
+
+During a routine credential exposure sweep we flagged one of those new hires. His identity is sitting in public, and so is an old password of his. In the same period, authentication telemetry on one of their machines shows failed logons against that account, then a success.
+
+What we need you to work out:
+
+   · How the account was found and why it was worth targeting
+   · Whether the credentials were actually used, and from where
+   · What happened once someone was on the keyboard
+   · What the account reached outside its role, and where that material went
+   · Whether anything was left behind, and the honest root cause
 
 This is an active investigation. Your objective is to reconstruct the attack timeline, identify key indicators, and answer targeted questions related to the compromise.
 
 ---
-🚩 Flag 1: Attacker IP Address
-MITRE Technique:
-🔸 T1110.001 – Brute Force: Password Guessing
+🚩 Flag 1: The Remote Support Endpoint
 
-Scenario Context:
+Scenario/Objective Context:
 
-Suspicious RDP login activity has been detected on a cloud-hosted Windows server. Multiple failed attempts were followed by a successful login, suggesting brute-force or password spraying behaviour.
+There is a cached copy of an internal support reference sitting in a public document cache. It names a machine that accepts remote support connections and gives the address you would reach it on from outside.
 
-Objective:
-
-Identify the external IP address that successfully logged in via RDP after a series of failures.
+Give me the address an attacker would have targeted. Format: IP address, the public one, not the internal one
 
 Investigation
 
-I began by reviewing authentication events on the compromised endpoint to identify failed and successful Remote Desktop (RDP) logons during the incident timeframe. After observing numerous failed attempts, I refined the query to display successful logons originating from external IP addresses.
+We are handed a evidence file to begin our investigation which contains various artifacts. Upon searching the file we locate the IP address in Question.
 
-### KQL Used
 
-```kusto
-DeviceLogonEvents
-| where DeviceName contains "flare"
-| where Timestamp between (datetime(2025-09-12) .. datetime(2025-09-30))
-| where isnotempty(RemoteIP)
-| where RemoteIP != "127.0.0.1" and RemoteIP != "::1"
-| project Timestamp, DeviceName, ActionType, LogonType, RemoteIP, AccountName, RemoteDeviceName
-| sort by Timestamp asc
-```
-The investigation identified the external IP address that successfully authenticated after multiple failed login attempts, confirming a brute-force attack against the endpoint.
+### Answer:  Public Address	135.237.163.62
 
-<img width="862" height="691" alt="image" src="https://github.com/user-attachments/assets/9fc64d0a-369f-4f8c-9397-e5c3591fc0a3" />
-
-What is the earliest external IP address successfully logged in via RDP after multiple failed login attempts?
-*
-
-Answer 
-
-<img width="975" height="276" alt="image" src="https://github.com/user-attachments/assets/82ca0d8c-36ea-4a06-b89d-a94b8db1107c" />
+<img width="971" height="594" alt="image" src="https://github.com/user-attachments/assets/cd39bd09-1706-418c-b9af-78bf7d362315" />
 
 
 
