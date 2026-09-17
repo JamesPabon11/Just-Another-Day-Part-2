@@ -50,35 +50,39 @@ We are handed a evidence file to begin our investigation which contains various 
 ---
 
 
-### 🚩 Flag 2: Compromised Account
-MITRE Technique:
-🔸 T1078 – Valid Accounts
+### 🚩 Flag 2: The Guessing Source
 
 Scenario Context:
 
-The attacker gained access to the system using valid credentials through RDP. Identifying which account was accessed is critical to understanding what level of control they have.
+Here is where most people go wrong. That box is being hit constantly from the open internet, dozens of sources, thousands of failures. Almost all of it is background noise that never gets anywhere.
+
+One source is different. It guesses against this account specifically, at low volume, and it eventually succeeds. Cut it out of the storm and give me it. Format: IP address. 
+
+Investigation
+
+ 
+I begin by searching through DeviceLogonEvents looking through device name "nh-wks-it-01" and account reed. Through our search we find a short series of logon on fails and a success by the possible attacker. 
 
 
-Objective:
-
-Determine the username that was used during the successful RDP login associated with the attacker’s IP.
-
-Using the successful RDP logon identified in Flag 1, I pivoted to determine which account was used during the authentication event.
 
 ### KQL Used
 
 ```kusto
-DeviceLogonEvents
-| where DeviceName contains "flare"
-| where LogonType == "RemoteInteractive"
-| where ActionType == "LogonSuccess"
-| project Timestamp, AccountName, RemoteIP, LogonType, ActionType
+DeviceLogonEvents 
+
+| where Timestamp between (datetime(2026-05-25) .. datetime(2026-05-31)) 
+| where DeviceName startswith "nh-wks-it-01" 
+| where AccountName has "reed" 
+| project Timestamp, ActionType, RemoteIP, AccountName 
+| sort by Timestamp asc 
 ```
 
-<img width="975" height="380" alt="image" src="https://github.com/user-attachments/assets/0689cde2-9f5f-44b1-810f-d0bf05de633f" />
+<img width="1491" height="671" alt="image" src="https://github.com/user-attachments/assets/7acd14b7-f00d-4f87-8321-bd1b656fed67" />
 
-<img width="975" height="247" alt="image" src="https://github.com/user-attachments/assets/ab89e2f8-e518-4efa-ac9c-4c7d94b93516" />
 
+
+
+### Answer:  116.45.242.115
 
 
 
