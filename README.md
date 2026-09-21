@@ -30,7 +30,8 @@ This is an active investigation. Your objective is to reconstruct the attack tim
 ---
 🚩 Flag 1: The Remote Support Endpoint
 
-MITRE Techniques: T1590.005 / T1133
+MITRE Techniques: 
+🔸T1590.005 / T1133
 🔸Gather Victim Network Info / External Remote Services
 
 Scenario/Objective Context:
@@ -279,6 +280,7 @@ C:\Users\m.reed\Documents\SupportReview
 ---
 
 # 🚩 Flag 8 – How It Left
+MITRE Technique:
 🔸 Tactic: Exfiltration (TA0104)
 🔸 Technique: Exfiltration Over Alternative Protocol: Exfiltration Over RDP Client Drive Redirection (T1048.003)
 
