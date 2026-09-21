@@ -30,6 +30,9 @@ This is an active investigation. Your objective is to reconstruct the attack tim
 ---
 🚩 Flag 1: The Remote Support Endpoint
 
+MITRE Techniques: T1590.005 / T1133
+Gather Victim Network Info / External Remote Services
+
 Scenario/Objective Context:
 
 There is a cached copy of an internal support reference sitting in a public document cache. It names a machine that accepts remote support connections and gives the address you would reach it on from outside.
@@ -52,7 +55,8 @@ We are handed a evidence file to begin our investigation which contains various 
 
 ### 🚩 Flag 2: The Guessing Source
 
-MITRE Techniques:
+MITRE Techniques: T1110.001
+Brute Force: Password Guessing
 
 Scenario Context:
 
@@ -95,7 +99,8 @@ DeviceLogonEvents
 
 ### 🚩 Flag 3: How They Came In
 
-MITRE Techniques:
+MITRE Techniques: T1021.001
+Remote Services: Remote Desktop Protocol
 
 
 Scenario Context:
@@ -129,7 +134,7 @@ DeviceLogonEvents
 
 
 
-### 🚩Flag 4: Command Line Used to Execute the Binary
+### 🚩Flag 4: The Second Source
 MITRE Technique:
 🔸 T1059 – Command and Scripting Interpreter
 
