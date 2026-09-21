@@ -139,20 +139,30 @@ MITRE Technique:
 🔸 T1059 – Command and Scripting Interpreter
 
 Scenario Context:
-The attacker used a command line to launch the binary. Understanding how it was executed may reveal intent, obfuscation, or further payloads.
+They did not stay on one address. A short while after the first successful session, the same account is used from somewhere else entirely.
+Give me the second external source. Format: IP address
+
+## Investigation
+Finding How They Got In: I started by digging through DeviceLogonEvents on nh-wks-it-01 to filter out background noise and look specifically at m.reed. I saw several failed login attempts followed by a successful RemoteInteractive login over RDP from the external IP 116.45.242.115.
+Tracking the IP Switch: Shortly after the initial login, I checked the logs for further activity from m.reed and noticed the connection switched to a second external IP address, 45.131.194.61, showing the attacker was still actively using the compromised account.
 
 
-Objective:
-Provide the full command line used to launch the binary from Flag 3.
 
 ## KQL Used
 
 ```kusto
-DeviceProcessEvents
-| where DeviceName contains "flare"
-| where FileName == "msupdate.exe"
-| project Timestamp, FileName, ProcessCommandLine
+DeviceLogonEvents
+| where Timestamp between (datetime(2026-05-29T01:20:00Z) .. datetime(2026-05-29T02:00:00Z))
+| where AccountName has "reed"
+| where ActionType == "LogonSuccess"
+| project Timestamp, DeviceName, AccountName, ActionType, LogonType, RemoteIP
+| sort by Timestamp asc
 ```
+<img width="2206" height="693" alt="image" src="https://github.com/user-attachments/assets/5c8689d5-516e-4032-a1db-cd6fdbf06b50" />
+
+## Answer : 45.131.194.61
+
+
 
 ## 🚩 Flag 5: Persistence Mechanism Created
 MITRE Technique:
