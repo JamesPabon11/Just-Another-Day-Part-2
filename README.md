@@ -278,34 +278,34 @@ C:\Users\m.reed\Documents\SupportReview
 
 ---
 
-# 🚩 Flag 8 – Archive File Created
-**MITRE ATT&CK:** T1560.001 – Archive Collected Data
+# 🚩 Flag 8 – How It Left
+🔸 Tactic: Exfiltration (TA0104)
+🔸 Technique: Exfiltration Over Alternative Protocol: Exfiltration Over RDP Client Drive Redirection (T1048.003)
+
+Scenario Context:
+This is the beat worth understanding. Nothing was uploaded, no cloud service was touched, and nothing left over the network in a way most people would think to look for. The archive walked out through the session they were already sitting in. Follow the archive and give me the destination path it was written to. Format: full destination path as it appears in the telemetry no need for the file name.
 
 ## Investigation
 
-Following the discovery phase, I searched file creation events for archive files created in common staging locations such as **Temp**, **AppData**, and **ProgramData**.
+Identifying Virtual Channel Exfiltration: Standard network monitoring misses file transfers executed over an active RDP virtual channel. When an attacker redirects local client drives during an RDP session, remote drives are mapped under the \\tsclient\ virtual device path.
+
+Tracing the Destination Path: I searched DeviceFileEvents for file creation and write actions involving .zip archives where the FolderPath targeted the redirected RDP channel. The telemetry confirmed the archive support_review_202605.zip was written directly across the RDP session to the redirected path \\tsclient\G\Temp\NimbusSupport\
 
 ## KQL Used
 
 ```kusto
 DeviceFileEvents
-| where DeviceName contains "slflare"
-| where Timestamp between (datetime(2025-09-15) .. datetime(2025-09-30))
-| where FolderPath has_any ("Temp", "AppData", "ProgramData")
-| where FileName endswith ".zip"
-| project Timestamp, FolderPath, FileName, InitiatingProcessCommandLine
+| where InitiatingProcessAccountName == "m.reed" or RequestAccountName == "m.reed"
+| where TimeGenerated >= datetime(2026-05-29T01:50:00Z) and TimeGenerated <= datetime(2026-05-29T02:15:00Z) 
+| where ActionType in ("FileCreated", "FileCopied", "FileModified")
+| project Timestamp, DeviceName, InitiatingProcessAccountName, ActionType, FileName, FolderPath
 | sort by Timestamp asc
 ```
-
-## Finding
-
-After performing system discovery (Flag 7), the attacker created an archive file called "backup_sync.zip" at 
-Sep 16, 2025 3:43:42 PM in the user's AppData Temp directory, preparing collected data for exfiltration. This was created just one minute after the discovery commands completed indicating an automated script handling the full chain from reconnaissance to data staging.
-
-<img width="1833" height="291" alt="image" src="https://github.com/user-attachments/assets/6a6b4092-1610-4359-b6cc-d821b7eec4ea" />
+<img width="2100" height="580" alt="image" src="https://github.com/user-attachments/assets/32fc66f5-9e7c-4f3a-9679-ac4054f8e917" />
 
 
-<img width="599" height="135" alt="image" src="https://github.com/user-attachments/assets/3d0f39dd-c547-4196-a12c-f4cb4f03bc9f" />
+## Answer
+\\tsclient\G\Temp\NimbusSupport\support_review_202605.zip
 
 
 ---
