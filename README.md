@@ -31,7 +31,7 @@ This is an active investigation. Your objective is to reconstruct the attack tim
 🚩 Flag 1: The Remote Support Endpoint
 
 MITRE Techniques: T1590.005 / T1133
-Gather Victim Network Info / External Remote Services
+🔸Gather Victim Network Info / External Remote Services
 
 Scenario/Objective Context:
 
@@ -56,7 +56,7 @@ We are handed a evidence file to begin our investigation which contains various 
 ### 🚩 Flag 2: The Guessing Source
 
 MITRE Techniques: T1110.001
-Brute Force: Password Guessing
+🔸Brute Force: Password Guessing
 
 Scenario Context:
 
@@ -100,7 +100,7 @@ DeviceLogonEvents
 ### 🚩 Flag 3: How They Came In
 
 MITRE Techniques: T1021.001
-Remote Services: Remote Desktop Protocol
+🔸Remote Services: Remote Desktop Protocol
 
 
 Scenario Context:
@@ -164,56 +164,41 @@ DeviceLogonEvents
 
 
 
-## 🚩 Flag 5: Persistence Mechanism Created
-MITRE Technique:
-🔸 T1053.005 – Scheduled Task/Job: Scheduled Task
+## 🚩 Flag 5: Getting Their Bearings
+MITRE Technique: Discovery Command Burst
+🔸 Technique: Software Discovery (T1518), System Information Discovery (T1082), Network Share Discovery (T1135), Permission Groups Discovery: Domain Groups (T1069.002)
 
 Scenario Context:
 
-The attacker established persistence on the system to maintain access. In this case, they created a scheduled task to ensure their payload would execute even after reboot or logoff.
+Once they are on, there is a short burst of built-in commands while they work out where they have landed and what the account can do.
 
-Objective:
+Careful with your anchor. The session opens a couple of minutes before the first real command, and what sits in between is Windows and Edge doing first-run housekeeping, not the operator.
 
-Identify the name of the scheduled task created by the attacker.
+Reconstruct the burst, in the order it ran. Format: every command in the burst, in order, comma-separated, exactly as it appears in the log including any switches
+
 
 ## Investigation
 
-To identify how the attacker maintained persistence, I reviewed scheduled task creation activity using both process execution and Defender device events.
+Filtering System Noise: When looking at DeviceProcessEvents right after the RDP session opened, I noticed several background processes like MicrosoftEdgeUpdate.exe and sihost.exe running automatically. I filtered out those system and browser events to isolate only the commands manually typed by the attacker.
+
+Reconstructing the Command Sequence: By sorting the remaining process events by timestamp, I identified a distinct, quick burst of discovery commands run by m.reed. The attacker first checked their current identity (whoami) and host name (hostname), then looked for available file shares (net view \\NH-FS-01), and finally checked for group memberships (net group "HR" /domain
 
 ## KQL Used
 
 ```kusto
 DeviceProcessEvents
-| where DeviceName contains "flare"
-| where AccountName == "slflare"
-| where Timestamp between (datetime(2025-09-12) .. datetime(2025-09-30))
-| where FileName in~ ("schtasks.exe", "powershell.exe")
-| project Timestamp, AccountName, FileName, ProcessCommandLine
+| where AccountName == "m.reed"
+| where TimeGenerated >= datetime(2026-05-29T01:30:00Z) and TimeGenerated <= datetime(2026-05-29T01:45:00Z)
+| where FileName in~ ("whoami.exe", "HOSTNAME.EXE", "ipconfig.exe", "net.exe")
+| project Timestamp, FileName, ProcessCommandLine, AccountName
 | sort by Timestamp asc
 ```
+<img width="2194" height="599" alt="image" src="https://github.com/user-attachments/assets/530ae0d6-ba0c-4087-8237-edb56cd81f93" />
 
-### Refined Query
 
-```kusto
-DeviceEvents
-| where DeviceName contains "flare"
-| where Timestamp between (datetime(2025-09-12) .. datetime(2025-09-30))
-| where ActionType == "ScheduledTaskCreated"
-| extend RawTaskName = tostring(parse_json(AdditionalFields).TaskName)
-| extend CleanTaskName = parse_path(RawTaskName).Filename
-| project Timestamp, ActionType, CleanTaskName
-| sort by Timestamp asc
-```
-To look for the exact scheduled task name I used the following KQL that coincided with the the previous executed command line on September 16th at 3:39 PM—right around the exact time they first broke in via RDP and ran that fake msupdate.exe binary.
+## Answer
 
-## Finding
-
-The investigation confirmed that the attacker created a scheduled task named **MicrosoftUpdateSync** to establish persistence. This ensured the malicious payload would execute automatically after system reboots or user logons, allowing the attacker to maintain long-term access to the compromised host.
-
-<img width="975" height="407" alt="image" src="https://github.com/user-attachments/assets/09264b42-f00f-4c77-b22d-075355a28a22" />
-
-<img width="578" height="142" alt="image" src="https://github.com/user-attachments/assets/62a7eb85-a982-4cf9-a615-8afeb6167aad" />
-
+whoami, hostname, net view \\NH-FS-01, net group "HR" /domain
 
 ---
 ## 🚩 Flag 6: What Defender Setting Was Modified?
