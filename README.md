@@ -312,88 +312,53 @@ DeviceFileEvents
 
 ---
 
-# 🚩 Flag 9 – Command and Control (C2)
-**MITRE ATT&CK:**
-- T1071.001 – Application Layer Protocol: Web Protocols
-- T1105 – Ingress Tool Transfer
+# 🚩 Flag 9 – Where They Actually Sat
+MITRE Technique:
+🔸 Tactic: Discovery (TA0007) / Lateral Movement (TA0008)
+🔸 Technique: Remote Services: SMB/Windows Admin Shares (T1021.002)
+
+Scenario Context:
+HR data was read, so the obvious assumption is that they got onto the file server. Check it rather than assuming it. Tell me whether this account ever ran anything on the file server, and if not, how the HR material was reached instead. Format: short phrase naming two things. First, yes or no on the file server. Second, how the files were reached.
 
 ## Investigation
 
-To identify the attacker's command and control infrastructure, I reviewed outbound network connections initiated by the compromised endpoint. I excluded known legitimate Microsoft domains to reduce background noise and focus on suspicious external destinations.
+Checking File Server Execution: I queried DeviceProcessEvents across the environment to verify whether m.reed ever established an interactive session or executed processes on NH-FS-01. The logs showed zero process execution by this user on the file server itself, confirming the attacker never logged in or moved laterally onto NH-FS-01.
+
+Determining Remote Access Method: I cross-referenced DeviceFileEvents and network connections on nh-wks-it-01. The telemetry showed nh-wks-it-01 reading and copying HR files remotely across the network over standard SMB file shares (\\NH-FS-01\HR), proving the attacker remained seated on nh-wks-it-01 the entire time and accessed the server's data over network shares.
 
 ## KQL Used
 
 ```kusto
-DeviceNetworkEvents
-| where DeviceName contains "slflare"
-| where Timestamp between (datetime(2025-09-15) .. datetime(2025-09-17))
-| where isnotempty(RemoteIP)
-| where RemoteUrl !has "microsoft.com"
-| where RemoteUrl !has "windows.com"
-| where RemoteUrl !has "live.com"
-| where RemoteUrl !has "brave.com"
-| project Timestamp,
-          RemoteIP,
-          RemoteUrl,
-          RemotePort,
-          InitiatingProcessFileName,
-          InitiatingProcessCommandLine
-| sort by Timestamp asc
+DeviceProcessEvents
+| where DeviceName startswith "NH-FS-01"
+| where AccountName has "reed" or InitiatingProcessAccountName has "reed"
+| project Timestamp, DeviceName, AccountName, FileName, ProcessCommandLine
 ```
 
-## Finding
+## Answer
 
-During the investigation of the compromised endpoint slflare, an indicator of compromise (IoC) was identified involving the execution of a malicious background script. An attacker utilized a masqueraded script named msupdate.exe to execute a local PowerShell payload (update_check.ps1), which subsequently initiated an outbound Command and Control (C2) network connection to the external IP address
-
-<img width="975" height="293" alt="image" src="https://github.com/user-attachments/assets/c0b0a273-3aeb-40fb-bc92-679c28167b16" />
-
-
-<img width="588" height="134" alt="image" src="https://github.com/user-attachments/assets/d2c10efe-23e1-4930-ae70-8c6483f113a2" />
 
 
 ---
 
-# 🚩 Flag 10 – Exfiltration Attempt
-**MITRE ATT&CK:** T1048.003 – Exfiltration Over Unencrypted Protocol
+# 🚩 Flag 10 – Containment
+MITRE Technique:
+🔸 Tactic: Incident Response / Containment
+🔸 Technique: Execution Isolation (M1040) / User Account Management (M1018)
 
-## Investigation
+Scenario Context:
+The clinic wants to call this a curious new starter and reset his password. You have seen the evidence. What is the first containment action, and why is a password reset alone not enough? Format: the action and the reasoning.
 
-After identifying the creation of **backup_sync.zip**, I pivoted into **DeviceNetworkEvents** to examine outbound network traffic immediately following the archive creation. I correlated public network connections with the initiating process to identify any attempted data transfers.
+Investigation
+Evaluating Response Effectiveness: Resetting an account password prevents new authentication attempts, but it does not automatically terminate existing, authenticated sessions in an active Windows RDP connection.
 
-## KQL Used
-
-```kusto
-DeviceNetworkEvents
-| where DeviceName contains "slflare"
-| where Timestamp between (datetime(2025-09-15) .. datetime(2025-09-30))
-| where RemoteIPType == "Public"
-| join kind=leftouter (
-    DeviceNetworkEvents
-    | where DeviceName contains "slflare"
-    | where Timestamp between (datetime(2025-09-15) .. datetime(2025-09-30))
-    | where RemoteIPType == "Public"
-    | summarize Count=count() by RemoteIP, RemotePort
-) on RemoteIP, RemotePort
-| project Timestamp,
-          RemoteIP,
-          RemotePort,
-          Count,
-          InitiatingProcessFileName,
-          InitiatingProcessCommandLine
-| order by Timestamp asc
-```
-
-## Finding
-
-After the attacker created the staged archive file (backup_sync.zip), I reviewed DeviceNetworkEvents for outbound connections occurring immediately afterward. The investigation identified a curl command performing an HTTP POST request to upload the archive to the attacker's external server at 185.92.220.87 over port 8081. This activity confirmed an attempted data exfiltration over an unencrypted protocol, resulting in the flag value 185.92.220.87:8081.
-
-<img width="975" height="80" alt="image" src="https://github.com/user-attachments/assets/1d3ab917-f471-4905-9221-e92cfe707818" />
+Determining the Priority Action: Because the threat actor established an interactive RDP session on nh-wks-it-01 and was actively copying files over redirected channels, resetting m.reed's domain password alone would leave the live session open and operational. Immediate device network isolation is required to sever the active tunnel and cut off command execution.
 
 
 
-This activity confirmed an attempted data exfiltration over an **unencrypted HTTP connection**, matching **MITRE ATT&CK T1048.003 – Exfiltration Over Unencrypted Protocol**.
+## Answer
 
-<img width="583" height="158" alt="image" src="https://github.com/user-attachments/assets/eae9e43d-9271-48d2-834f-9d3c7a921b8a" />
+Isolate nh-wks-it-01 from the network, a password reset does not kill active RDP sessions
 
 ---
 
@@ -401,31 +366,35 @@ This activity confirmed an attempted data exfiltration over an **unencrypted HTT
 
 | Phase | Activity | MITRE ATT&CK |
 |--------|----------|--------------|
-| Initial Access | Successful RDP login following repeated failed authentication attempts | T1110.001 |
-| Execution | `msupdate.exe` executed and launched PowerShell | T1059.003 |
-| Persistence | Created **MicrosoftUpdateSync** scheduled task | T1053.005 |
-| Defense Evasion | Added **C:\Windows\Temp** to Microsoft Defender exclusions | T1562.001 |
-| Discovery | Executed `cmd.exe /c systeminfo` | T1082 |
-| Collection | Created **backup_sync.zip** | T1560.001 |
-| Command & Control | Connected to **185.92.220.87** | T1071.001 |
-| Exfiltration | Uploaded archive to **185.92.220.87:8081** using `curl` | T1048.003 |
+| Initial Access | Successful RDP login using valid credentials (m.reed) from IP 116.45.242.115 | T1078, T1021.001 |
+| Execution | Command burst executed via cmd.exe (whoami, hostname, net)| 1059.003 |
+| Persistence | No Persistence Established (Verified via scheduled tasks/services audit) | 
+| Defense Evasion | IP address pivot during active session (45.131.194.61) | T1562 |
+| Discovery | Enumerated file server shares using net view \\NH-FS-01| T1135, T1082 |
+| Collection | Accessed HR files via SMB share (\\NH-FS-01\HR) and staged in C:\Users\m.reed\Documents| T1074.001 |
+| Command & Control | Active RDP Virtual Channel session maintained on nh-wks-it-01 | T1219 |
+| Exfiltration | Staged archive support_review_202605.zip exfiltrated via RDP drive redirection to \\tsclient\G\Temp\NimbusSupport\| T1048.003 |
 
 ---
 
 # Investigation Summary
 
-Throughout this investigation, Microsoft Defender XDR Advanced Hunting was used to correlate authentication, process execution, registry modifications, file creation, and network telemetry to reconstruct the complete attack lifecycle.
+Throughout this investigation, Microsoft Defender XDR Advanced Hunting was used to correlate authentication events, process execution, network connections, and file system telemetry to reconstruct the complete attack lifecycle on nh-wks-it-01.
 
-The attacker gained initial access through a successful RDP brute-force attack, executed a masqueraded binary that launched a malicious PowerShell payload, established persistence through a scheduled task, modified Microsoft Defender to evade detection, performed system reconnaissance, staged collected data into an archive, communicated with an external command and control server, and ultimately attempted to exfiltrate the archive over HTTP using `curl`.
+The threat actor gained initial access by leveraging compromised credentials for m.reed over RDP, pivoting IP addresses during the active session. Once connected, the operator executed a short burst of built-in Windows command-line utilities to conduct initial host and domain discovery. Without pivoting directly onto the internal file server NH-FS-01, the attacker accessed sensitive HR records remotely over standard SMB shares, staged the data inside the user's local Documents folder, and archived it into support_review_202605.zip. Finally, the archive was exfiltrated directly across the active RDP virtual channel using client drive redirection (\\tsclient), bypassing traditional network upload monitoring.
 
-This investigation demonstrates how Defender XDR telemetry can be correlated across multiple data sources to identify attacker behavior, validate indicators of compromise, and map each phase of an intrusion to the MITRE ATT&CK framework.
+This investigation demonstrates how Defender XDR telemetry can be correlated across DeviceLogonEvents, DeviceProcessEvents, and DeviceFileEvents to uncover stealthy exfiltration channels, verify the absence of persistence mechanisms, and inform immediate containment strategies—specifically isolating the endpoint rather than relying solely on a password reset.
 
 ---
 
 # Lessons Learned
 
-- Microsoft Defender XDR provides comprehensive telemetry for reconstructing attacker activity across authentication, process, registry, file, and network events.
-- KQL enables efficient threat hunting by allowing analysts to pivot between related event types and progressively refine investigations.
-- Mapping findings to the MITRE ATT&CK framework provides valuable context for understanding attacker objectives and techniques.
-- Correlating multiple data sources is essential for identifying the complete attack chain rather than viewing isolated security events.
-- Effective threat hunting requires iterative query refinement to reduce noise and focus on meaningful indicators of compromise.
+RDP virtual channels (such as \\tsclient drive redirection) allow attackers to exfiltrate data directly through active sessions without generating standard web or cloud upload traffic.
+
+Resetting an account password stops future authentications but does not terminate active RDP sessions; immediate host isolation is necessary to stop live exfiltration.
+
+Cross-referencing process telemetry across hosts is vital to confirm whether an account actually logged into a remote server or simply accessed data over SMB shares.
+
+Filtering out legitimate background processes (e.g., system updates, browser housekeeping) is essential to clearly isolate manual operator command bursts during post-compromise discovery.
+
+Mapping each artifact to the MITRE ATT&CK framework helps structure incident write-ups cleanly for both SOC operations and portfolio documentation.
