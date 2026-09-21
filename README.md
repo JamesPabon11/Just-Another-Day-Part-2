@@ -44,7 +44,9 @@ Investigation
 We are handed a evidence file to begin our investigation which contains various artifacts. Upon searching the file we locate the IP address in Question.
 
 
-### Answer:  Public Address	135.237.163.62
+### Answer: 
+
+Public Address	135.237.163.62
 
 <img width="971" height="594" alt="image" src="https://github.com/user-attachments/assets/cd39bd09-1706-418c-b9af-78bf7d362315" />
 
@@ -88,7 +90,9 @@ DeviceLogonEvents
 
 
 
-### Answer:  116.45.242.115
+### Answer
+
+116.45.242.115
 
 
 
@@ -125,7 +129,9 @@ DeviceLogonEvents
 
 
 
-## Answer : Remote Interactive
+## Answer 
+
+Remote Interactive
 
 
 
@@ -160,7 +166,9 @@ DeviceLogonEvents
 ```
 <img width="2206" height="693" alt="image" src="https://github.com/user-attachments/assets/5c8689d5-516e-4032-a1db-cd6fdbf06b50" />
 
-## Answer : 45.131.194.61
+## Answer 
+
+45.131.194.61
 
 
 
@@ -201,45 +209,41 @@ DeviceProcessEvents
 whoami, hostname, net view \\NH-FS-01, net group "HR" /domain
 
 ---
-## 🚩 Flag 6: What Defender Setting Was Modified?
+## 🚩 Flag 6: Looking at the File Server
 MITRE Technique:
-🔸 T1562.001 – Impair Defenses: Disable or Modify Windows Defender
+🔸 Tactic: Discovery (TA0007)
+🔸 Technique: Network Share Discovery (T1135)
 
 Scenario Context:
-After persistence was established, the attacker altered Microsoft Defender's configuration to evade detection. Specifically, they added a folder exclusion in Defender's registry, preventing scans of certain files or directories.
+The recon does not stop at the local box. One command asks a specific server what it is sharing. Give me it. Format: full command, exactly as it appears in the log.
 
-
-Objective:
-Identify the folder path that was excluded from Defender scans.
 
 ## Investigation
 
-After identifying the attacker's persistence mechanism, I investigated whether any Microsoft Defender settings had been modified to evade detection. I reviewed Defender-related events for exclusion paths added through PowerShell or registry modifications.
+Identifying Share Reconnaissance: After getting local context on the machine, the attacker pivoted to finding stored network data. I queried DeviceProcessEvents for net.exe activity and found the command net view \\NH-FS-01.
+
+Analyzing the Intent: Running net view directly against NH-FS-01 allowed the attacker to list all available SMB network shares hosted on the file server before attempting to access sensitive directories.
 
 ## KQL Used
 
 ```kusto
-DeviceEvents
-| where DeviceName contains "flare"
-| where Timestamp between (datetime(2025-09-12) .. datetime(2025-09-30))
-| where InitiatingProcessCommandLine has "ExclusionPath"
-    or AdditionalFields has "ExclusionPath"
-| project Timestamp, InitiatingProcessCommandLine, AdditionalFields
+DeviceProcessEvents
+| where AccountName == "m.reed"
+| where TimeGenerated >= datetime(2026-05-29T01:30:00Z) and TimeGenerated <= datetime(2026-05-29T01:45:00Z)
+| where FileName =~ "net.exe" or ProcessCommandLine has "net view"
+| project Timestamp, DeviceName, AccountName, ProcessCommandLine
 | sort by Timestamp asc
 ```
 
-## Finding
+<img width="1861" height="557" alt="image" src="https://github.com/user-attachments/assets/230c6cf6-ebcb-432f-a6f1-f3cdd18184c2" />
 
-The investigation confirmed that the attacker added **C:\Windows\Temp** to Microsoft Defender's exclusion list. By excluding this directory from Defender scans, the attacker reduced the likelihood that malicious payloads stored in this location would be detected.
+## Answer
 
-<img width="975" height="332" alt="image" src="https://github.com/user-attachments/assets/929459bb-2114-45b7-aec3-358fce219598" />
-
-<img width="589" height="158" alt="image" src="https://github.com/user-attachments/assets/ff6104a8-3bf6-4608-8aa4-7d0083935842" />
-
+NH-FS-01
 
 ---
 
-# 🚩 Flag 7 – Discovery Command Executed
+# 🚩 Flag 7 – Where They Put It
 **MITRE ATT&CK:** T1082 – System Information Discovery
 
 ## Investigation
