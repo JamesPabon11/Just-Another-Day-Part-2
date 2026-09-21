@@ -244,50 +244,36 @@ NH-FS-01
 ---
 
 # 🚩 Flag 7 – Where They Put It
-**MITRE ATT&CK:** T1082 – System Information Discovery
+MITRE Technique:
+🔸 Tactic: Collection (TA0009) / Command and Control (TA0011)
+🔸 Technique: Data Staged: Local Data Staging (T1074.001)
+
+Scenario Context:
+They pulled material together locally before moving it. Give me the folder they staged it in. Format: full folder path, no filename
+
 
 ## Investigation
 
-To determine how the attacker performed host reconnaissance, I reviewed process execution events for common Windows discovery commands. The initial query returned a large volume of results, so I refined the search to include known enumeration commands frequently used during post-exploitation.
+Locating the Staging Directory: To find where the attacker gathered files before taking them, I looked at DeviceFileEvents for file creation and modification events tied to m.reed.
+Identifying Local Collection: I spotted new files being written directly into the user's standard working directory, confirming they were staging sensitive HR records locally before preparing them for exfiltration.
 
 ## KQL Used
 
 ```kusto
-DeviceProcessEvents
-| where DeviceName contains "slflare"
-| where Timestamp between (datetime(2025-09-25) .. datetime(2025-09-30))
-| sort by Timestamp asc
+DeviceFileEvents
+| where TimeGenerated >= datetime(2026-05-29T01:50:00Z) and TimeGenerated <= datetime(2026-05-29T02:15:00Z) 
+| where RequestAccountName == "m.reed" or InitiatingProcessAccountName == "m.reed" 
+| where ActionType in~ ("FileCreated", "FileModified", "FileRenamed") 
+| project TimeGenerated, ActionType, FolderPath, FileName, InitiatingProcessFileName, InitiatingProcessCommandLine 
+| order by TimeGenerated asc 
 ```
 
-### Refined Query
+<img width="2183" height="569" alt="image" src="https://github.com/user-attachments/assets/2a83e327-2eb9-4db3-bb20-2351039b6e39" />
 
-```kusto
-DeviceProcessEvents
-| where DeviceName contains "slflare"
-| where Timestamp between (datetime(2025-09-25) .. datetime(2025-09-30))
-| where ProcessCommandLine has_any (
-    "systeminfo",
-    "whoami",
-    "hostname",
-    "net ",
-    "net1",
-    "ipconfig",
-    "netstat",
-    "nltest"
-)
-| project Timestamp, FileName, ProcessCommandLine, InitiatingProcessCommandLine
-| sort by Timestamp asc
-```
 
-## Finding
+## Answer
 
-The earliest discovery command executed by the attacker was:
-
-<img width="975" height="471" alt="image" src="https://github.com/user-attachments/assets/d287e8bf-76c0-4263-a8da-4fbbb1fbc53b" />
-
-This command gathers detailed information about the operating system, hardware, installed updates, and system configuration. It is commonly used by attackers during the reconnaissance phase to better understand the compromised environment. "cmd.exe" /c systeminfo is a textbook discovery command. Attackers frequently use that exact syntax to spawn a quick command shell, dump the entire system's profile (OS version, hotfixes, architecture), and exit.
-
-<img width="577" height="156" alt="image" src="https://github.com/user-attachments/assets/a3704ebb-11c9-4046-a28f-bd10355ab558" />
+C:\Users\m.reed\Documents\SupportReview
 
 
 ---
